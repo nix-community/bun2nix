@@ -65,6 +65,7 @@ The full list of extra arguments `bun2nix.hook` adds to a derivation are:
 | Argument                  | Purpose                                                                                                                                                                                                                                                                                       |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bunDeps`                 | The output of [`fetchBunDeps`](./fetchBunDeps.md) (or any other Nix derivation which produces a Bun-compatible install cache). This is required.                                                                                                                                              |
+| `bunRoot`                 | Change the root of the project to a subdirectory where all the commands are run in. Must be a string name representing the subdirectory and not a nix path literal.                                                                                                                           |
 | `bunBuildFlags`           | Flags to pass to Bun in the default Bun build phase                                                                                                                                                                                                                                           |
 | `bunCheckFlags`           | Flags to pass to Bun in the default Bun check phase                                                                                                                                                                                                                                           |
 | `bunInstallFlags`         | Flags to pass to `bun install`. If not set these default to "--linker=isolated --backend=symlink" on `aarch64-darwin` or "--linker=isolated" on other systems                                                                                                                                 |
@@ -82,6 +83,7 @@ The `bun2nix` hook introduces a number of new build phases which are worth knowi
 
 | Phase                        | Purpose                                                                                     |
 | ---------------------------- | ------------------------------------------------------------------------------------------- |
+| `bunSetInstallCacheDirPhase` | Sets up the bun cache to link to the prebuilt one in the nix store                          |
 | `bunPatchPhase`              | Before doing anything, patch shebangs of your local scripts to use Bun as their interpreter |
 | `bunNodeModulesInstallPhase` | Runs `bun install` in your `src` repo                                                       |
 | `bunLifecycleScriptsPhase`   | Runs any Bun lifecycle scripts (i.e., "install", etc.) after making `node_modules` writable |

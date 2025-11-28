@@ -3,9 +3,11 @@
 # shellcheck disable=SC2034
 readonly bunDefaultInstallFlagsArray=(@bunDefaultInstallFlags@)
 
-function bunSetInstallCacheDir {
+function bunSetInstallCacheDirPhase {
+  runHook preBunSetInstallCacheDirPhase
+
   if ! [ -v bunDeps ]; then
-    printf '\n\033[31mError:\033[0m %s.\n\n' "$(
+    printf '\n\033[31mError:\033[0m %s\n\n' "$(
       cat <<'EOF'
 Please set `bunDeps` in order to use `bun2nix.hook` or
 `bun2nix.mkDerivation` to build your package.
@@ -34,6 +36,39 @@ EOF
   export BUN_INSTALL_CACHE_DIR
 
   cp -r "$bunDeps"/share/bun-cache/. "$BUN_INSTALL_CACHE_DIR"
+
+  if ! [ -v bunRoot ]; then
+    bunRoot=$(pwd)
+  else
+    local subDir
+    subDir="$(pwd)/$bunRoot"
+
+    if ! [ -d "$subDir" ]; then
+      printf '\n\033[31mError:\033[0m %s\n\n' "$(
+        cat <<'EOF'
+`bunRoot` should be a sub directory of the current working directory.
+
+An easy mistake to make is accidentally passing a nix path literal,
+which gets copied to the nix store separately:
+
+```nix
+bunRoot = ./assets; # (incorrect)
+```
+
+You may fix this by simply passing a string instead:
+
+```nix
+bunRoot = "assets"; # (correct)
+```
+EOF
+      )" >&2
+      exit 1
+    fi
+  fi
+
+  echo "Using bun root: \"$bunRoot\""
+
+  runHook postBunSetInstallCacheDirPhase
 }
 
 function bunPatchPhase {
@@ -48,6 +83,7 @@ function bunPatchPhase {
 }
 
 function bunNodeModulesInstallPhase {
+  pushd "$bunRoot" || exit 1
   runHook preBunNodeModulesInstallPhase
 
   local flagsArray=()
@@ -66,9 +102,11 @@ function bunNodeModulesInstallPhase {
   bun install "${flagsArray[@]}"
 
   runHook postBunNodeModulesInstallPhase
+  popd || exit 1
 }
 
 function bunLifecycleScriptsPhase {
+  pushd "$bunRoot" || exit 1
   runHook preBunLifecycleScriptsPhase
 
   chmod -R u+rwx ./node_modules
@@ -86,9 +124,11 @@ function bunLifecycleScriptsPhase {
   bun install "${flagsArray[@]}"
 
   runHook postBunLifecycleScriptsPhase
+  popd || exit 1
 }
 
 function bunBuildPhase {
+  pushd "$bunRoot" || exit 1
   runHook preBuild
 
   local flagsArray=()
@@ -99,9 +139,11 @@ function bunBuildPhase {
   bun build "${flagsArray[@]}"
 
   runHook postBuild
+  popd || exit 1
 }
 
 function bunCheckPhase {
+  pushd "$bunRoot" || exit 1
   runHook preCheck
 
   local flagsArray=()
@@ -112,9 +154,11 @@ function bunCheckPhase {
   bun test "${flagsArray[@]}"
 
   runHook postCheck
+  popd || exit 1
 }
 
 function bunInstallPhase {
+  pushd "$bunRoot" || exit 1
   runHook preInstall
 
   if ! [ -v pname ]; then
@@ -129,9 +173,10 @@ function bunInstallPhase {
   install -Dm755 "$pname" "$out/bin/$pname"
 
   runHook postInstall
+  popd || exit 1
 }
 
-appendToVar preConfigurePhases bunSetInstallCacheDir
+appendToVar preConfigurePhases bunSetInstallCacheDirPhase
 appendToVar preBuildPhases bunNodeModulesInstallPhase
 
 if [ -z "${dontRunLifecycleScripts-}" ]; then

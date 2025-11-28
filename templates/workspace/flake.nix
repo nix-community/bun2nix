@@ -6,7 +6,7 @@
     flake-utils.url = "github:numtide/flake-utils";
     systems.url = "github:nix-systems/default";
 
-    bun2nix.url = "github:nix-community/bun2nix?tag=2.0.3";
+    bun2nix.url = "github:nix-community/bun2nix?tag=2.0.4";
     bun2nix.inputs.nixpkgs.follows = "nixpkgs";
     bun2nix.inputs.systems.follows = "systems";
   };

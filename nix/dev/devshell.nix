@@ -39,6 +39,8 @@
           wasm-pack
           lld
 
+          elixir_1_19
+
           (lib.optional (!stdenv.isDarwin) moldHook)
         ];
       };

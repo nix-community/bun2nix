@@ -21,6 +21,7 @@
       statix.enable = true;
       toml-sort.enable = true;
       zig.enable = true;
+      mix-format.enable = true;
     };
   };
 }
