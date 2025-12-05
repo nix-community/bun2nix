@@ -51,9 +51,10 @@ The full list of accepted arguments is:
 
 > Additionally, the full range of config options from the [hook](./hook.md) is available too.
 
-| Argument      | Purpose                                                                                                                                                                |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packageJson` | (Optional) Your project's `package.json`. If supplied can be used to complete `pname`, `version` and `module` instead of requiring them manually.                      |
-| `pname`       | The name of the package to build. Required if `packageJson` is not given.                                                                                              |
-| `version`     | Your package version. Required if `packageJson` is not given.                                                                                                          |
-| `module`      | The `index.{js,ts}` file entry point to your Bun application. This should be a string containing the relative path from `src`. Required if `packageJson` is not given. |
+| Argument               | Purpose                                                                                                                                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packageJson`          | (Optional) Your project's `package.json`. If supplied can be used to complete `pname`, `version` and `module` instead of requiring them manually.                                                      |
+| `pname`                | The name of the package to build. Required if `packageJson` is not given.                                                                                                                              |
+| `version`              | Your package version. Required if `packageJson` is not given.                                                                                                                                          |
+| `module`               | The `index.{js,ts}` file entry point to your Bun application. This should be a string containing the relative path from `src`. Required if `packageJson` is not given.                                 |
+| `bunCompileToBytecode` | (Default: true) Whether to add the [`--bytecode`](https://bun.com/docs/bundler/bytecode) flag to the `bun build` command. Bytecode will your Code to be CommonJS and therefore remove top-level await. |

@@ -35,6 +35,7 @@ in
             nativeBuildInputs ? [ ],
             # Bun binaries built by this derivation become broken by the default fixupPhase
             dontFixup ? !(args ? buildPhase),
+            bunCompileToBytecode ? true,
             ...
           }@args:
 
@@ -122,6 +123,8 @@ in
                   "--compile"
                   "--minify"
                   "--sourcemap"
+                ]
+                ++ lib.optional (module != null && bunCompileToBytecode) [
                   "--bytecode"
                 ];
 
