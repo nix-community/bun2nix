@@ -1,4 +1,4 @@
-fetchurl {
+fetchurlWithAuth {
     url = "{{ url }}";
     hash = "{{ hash }}";
   }

@@ -10,8 +10,98 @@
   fetchFromGitHub,
   fetchgit,
   fetchurl,
+  bunfigPath ? null,
+  npmrcPath ? null,
   ...
 }:
+let
+  # Parse bunfig.toml for registry credentials
+  bunfigCredentials =
+    if bunfigPath != null && builtins.pathExists bunfigPath then
+      let
+        bunfig = builtins.fromTOML (builtins.readFile bunfigPath);
+        install = bunfig.install or {};
+        scopes = install.scopes or {};
+        # Extract token from scope config (handles both string and object formats)
+        extractToken = _: cfg:
+          if builtins.isString cfg then null
+          else cfg.token or null;
+        # Extract URL from scope config
+        extractUrl = _: cfg:
+          if builtins.isString cfg then cfg
+          else cfg.url or null;
+        # Build a map of registry URL -> token
+        scopeEntries = builtins.mapAttrs (name: cfg: {
+          url = extractUrl name cfg;
+          token = extractToken name cfg;
+        }) scopes;
+      in
+        builtins.listToAttrs (
+          builtins.filter (x: x.value != null) (
+            builtins.map (name:
+              let entry = scopeEntries.${name};
+              in {
+                name = entry.url;
+                value = entry.token;
+              }
+            ) (builtins.attrNames scopeEntries)
+          )
+        )
+    else {};
+
+  # Parse .npmrc for registry credentials
+  # Format: //<registry>/:_authToken=<token>
+  npmrcCredentials =
+    if npmrcPath != null && builtins.pathExists npmrcPath then
+      let
+        content = builtins.readFile npmrcPath;
+        lines = builtins.filter builtins.isString (builtins.split "\n" content);
+        # Parse a line like //npm.pkg.github.com/:_authToken=TOKEN
+        parseLine = line:
+          let
+            match = builtins.match "^//([^/]+)(/.*)/:_authToken=(.+)$" line;
+          in
+            if match != null then {
+              url = "https://${builtins.elemAt match 0}${builtins.elemAt match 1}";
+              token = builtins.elemAt match 2;
+            }
+            else null;
+        parsed = builtins.filter (x: x != null) (builtins.map parseLine lines);
+      in
+        builtins.listToAttrs (
+          builtins.map (entry: { name = entry.url; value = entry.token; }) parsed
+        )
+    else {};
+
+  # Merge credentials (npmrc takes precedence)
+  credentials = bunfigCredentials // npmrcCredentials;
+
+  # Get auth header for a URL by matching registry host
+  getAuthHeader = url:
+    let
+      # Extract host from URL
+      match = builtins.match "https?://([^/]+)/.*" url;
+      host = if match != null then builtins.elemAt match 0 else null;
+      # Find matching credential
+      matchingUrls = builtins.filter (credUrl:
+        let credMatch = builtins.match "https?://([^/]+).*" credUrl;
+        in credMatch != null && builtins.elemAt credMatch 0 == host
+      ) (builtins.attrNames credentials);
+    in
+      if builtins.length matchingUrls > 0
+      then credentials.${builtins.elemAt matchingUrls 0}
+      else null;
+
+  # Wrapper for fetchurl that adds auth headers when available
+  fetchurlWithAuth = { url, hash, ... }@args:
+    let
+      token = getAuthHeader url;
+      authArgs = if token != null
+        then { curlOptsList = [ "-H" "Authorization: Bearer ${token}" ]; }
+        else {};
+    in
+      fetchurl (args // authArgs);
+in
 {
   {%- for pkg in packages %}
   "{{ pkg.name }}" = {{ pkg.fetcher }};
