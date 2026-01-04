@@ -38,13 +38,19 @@ in
       fetchBunDeps.function =
         {
           bunNix,
+          bunfigPath ? null,
+          npmrcPath ? null,
           overrides ? { },
           ...
         }@args:
         let
           attrIsBunPkg = _: value: lib.isStorePath value;
 
-          withErrCtx = builtins.addErrorContext invalidBunNixErr (pkgs.callPackage bunNix { });
+          withErrCtx = builtins.addErrorContext invalidBunNixErr (
+            pkgs.callPackage bunNix {
+              inherit bunfigPath npmrcPath;
+            }
+          );
 
           packages = lib.filterAttrs attrIsBunPkg withErrCtx;
 
