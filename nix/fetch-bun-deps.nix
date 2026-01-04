@@ -46,9 +46,11 @@ in
         let
           attrIsBunPkg = _: value: lib.isStorePath value;
 
-          withErrCtx = builtins.addErrorContext invalidBunNixErr (pkgs.callPackage bunNix {
-            inherit bunfigPath npmrcPath;
-          });
+          withErrCtx = builtins.addErrorContext invalidBunNixErr (
+            pkgs.callPackage bunNix {
+              inherit bunfigPath npmrcPath;
+            }
+          );
 
           packages = lib.filterAttrs attrIsBunPkg withErrCtx;
 
