@@ -86,11 +86,9 @@ impl Fetcher {
         let url = Self::to_npm_url(ident, tarball_url)?;
 
         // For non-default registries, explicitly set the filename to ensure .tgz extension
-        let name = if tarball_url.is_some_and(|u| !u.is_empty()) {
-            Some(Self::extract_tgz_filename(ident))
-        } else {
-            None
-        };
+        let name = tarball_url
+            .filter(|u| !u.is_empty())
+            .map(|_| Self::extract_tgz_filename(ident));
 
         Ok(Self::FetchUrl { url, hash, name })
     }
@@ -98,10 +96,10 @@ impl Fetcher {
     /// Extract a .tgz filename from a package identifier
     fn extract_tgz_filename(ident: &str) -> String {
         // Handle scoped packages like @scope/name@version
-        if let Some((_, name_and_ver)) = ident.split_once("/") {
-            if let Some((name, ver)) = name_and_ver.split_once("@") {
-                return format!("{}-{}.tgz", name, ver);
-            }
+        if let Some((_, name_and_ver)) = ident.split_once("/")
+            && let Some((name, ver)) = name_and_ver.split_once("@")
+        {
+            return format!("{}-{}.tgz", name, ver);
         }
         // Handle unscoped packages like name@version
         if let Some((name, ver)) = ident.split_once("@") {

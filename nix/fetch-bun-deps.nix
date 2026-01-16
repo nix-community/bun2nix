@@ -16,6 +16,125 @@ let
     bun2nix -o bun.nix
     ```
   '';
+
+  # Registry authentication utilities
+  # Parse bunfig.toml for registry credentials
+  parseBunfigCredentials =
+    bunfigPath:
+    if bunfigPath != null && builtins.pathExists bunfigPath then
+      let
+        bunfig = builtins.fromTOML (builtins.readFile bunfigPath);
+        install = bunfig.install or { };
+        scopes = install.scopes or { };
+        # Extract token from scope config (handles both string and object formats)
+        extractToken = _: cfg: if builtins.isString cfg then null else cfg.token or null;
+        # Extract URL from scope config
+        extractUrl = _: cfg: if builtins.isString cfg then cfg else cfg.url or null;
+        # Build a map of registry URL -> token
+        scopeEntries = builtins.mapAttrs (name: cfg: {
+          url = extractUrl name cfg;
+          token = extractToken name cfg;
+        }) scopes;
+      in
+      builtins.listToAttrs (
+        builtins.filter (x: x.value != null) (
+          builtins.map (
+            name:
+            let
+              entry = scopeEntries.${name};
+            in
+            {
+              name = entry.url;
+              value = entry.token;
+            }
+          ) (builtins.attrNames scopeEntries)
+        )
+      )
+    else
+      { };
+
+  # Parse .npmrc for registry credentials
+  # Format: //<registry>/:_authToken=<token>
+  parseNpmrcCredentials =
+    npmrcPath:
+    if npmrcPath != null && builtins.pathExists npmrcPath then
+      let
+        content = builtins.readFile npmrcPath;
+        lines = builtins.filter builtins.isString (builtins.split "\n" content);
+        # Parse a line like //npm.pkg.github.com/:_authToken=TOKEN
+        parseLine =
+          line:
+          let
+            match = builtins.match "^//([^/]+)/:_authToken=(.+)$" line;
+          in
+          if match != null then
+            {
+              url = "https://${builtins.elemAt match 0}";
+              token = builtins.elemAt match 1;
+            }
+          else
+            null;
+        parsed = builtins.filter (x: x != null) (builtins.map parseLine lines);
+      in
+      builtins.listToAttrs (
+        builtins.map (entry: {
+          name = entry.url;
+          value = entry.token;
+        }) parsed
+      )
+    else
+      { };
+
+  # Get auth header for a URL by matching registry host
+  getAuthHeader =
+    credentials: url:
+    let
+      # Extract host from URL
+      match = builtins.match "https?://([^/]+)/.*" url;
+      host = if match != null then builtins.elemAt match 0 else null;
+      # Find matching credential
+      matchingUrls = builtins.filter (
+        credUrl:
+        let
+          credMatch = builtins.match "https?://([^/]+).*" credUrl;
+        in
+        credMatch != null && builtins.elemAt credMatch 0 == host
+      ) (builtins.attrNames credentials);
+    in
+    if builtins.length matchingUrls > 0 then credentials.${builtins.elemAt matchingUrls 0} else null;
+
+  # Create an authenticated fetchurl wrapper
+  makeRegistryFetchurl =
+    fetchurl:
+    {
+      bunfigPath ? null,
+      npmrcPath ? null,
+    }:
+    let
+      bunfigCredentials = parseBunfigCredentials bunfigPath;
+      npmrcCredentials = parseNpmrcCredentials npmrcPath;
+      # Merge credentials (npmrc takes precedence)
+      credentials = bunfigCredentials // npmrcCredentials;
+    in
+    # Wrapper for fetchurl that adds auth headers when available
+    {
+      url,
+      ...
+    }@args:
+    let
+      token = getAuthHeader credentials url;
+      authArgs =
+        if token != null then
+          {
+            curlOptsList = [
+              "-H"
+              "Authorization: Bearer ${token}"
+            ];
+          }
+        else
+          { };
+    in
+    fetchurl (args // authArgs);
 in
 {
   options.perSystem = mkPerSystemOption {
@@ -46,9 +165,14 @@ in
         let
           attrIsBunPkg = _: value: lib.isStorePath value;
 
+          # Create authenticated fetchurl wrapper
+          fetchurlWithAuth = makeRegistryFetchurl pkgs.fetchurl {
+            inherit bunfigPath npmrcPath;
+          };
+
           withErrCtx = builtins.addErrorContext invalidBunNixErr (
             pkgs.callPackage bunNix {
-              inherit bunfigPath npmrcPath;
+              inherit fetchurlWithAuth;
             }
           );
 
