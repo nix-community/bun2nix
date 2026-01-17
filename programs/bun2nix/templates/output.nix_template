@@ -9,7 +9,7 @@
   copyPathToStore,
   fetchFromGitHub,
   fetchgit,
-  fetchurlWithAuth,
+  fetchurl,
   ...
 }:
 {

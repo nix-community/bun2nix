@@ -1,4 +1,4 @@
-fetchurlWithAuth {
+fetchurl {
     url = "{{ url }}";
     hash = "{{ hash }}";
 {%- if let Some(n) = name %}
