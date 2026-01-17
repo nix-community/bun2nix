@@ -35,6 +35,7 @@ EOF
   BUN_INSTALL_CACHE_DIR=$(mktemp -d)
   export BUN_INSTALL_CACHE_DIR
 
+  # Use -RL to dereference symlinks so bun finds actual directories
   cp -r "$bunDeps"/share/bun-cache/. "$BUN_INSTALL_CACHE_DIR"
 
   if ! [ -v bunRoot ]; then
@@ -85,6 +86,16 @@ function bunPatchPhase {
 function bunNodeModulesInstallPhase {
   pushd "$bunRoot" || exit 1
   runHook preBunNodeModulesInstallPhase
+
+  # Remove patchedDependencies from package.json and bun.lock since we
+  # pre-patch packages during the Nix build. This ensures bun looks for
+  # packages at the normal cache keys (without patch hash suffix).
+  if [ -f package.json ] && grep -q '"patchedDependencies"' package.json 2>/dev/null; then
+    yq -o=json 'del(.patchedDependencies)' package.json >package.json.tmp && mv package.json.tmp package.json
+  fi
+  if [ -f bun.lock ] && grep -q '"patchedDependencies"' bun.lock 2>/dev/null; then
+    yq -o=json 'del(.patchedDependencies)' bun.lock >bun.lock.tmp && mv bun.lock.tmp bun.lock
+  fi
 
   local flagsArray=()
   if [ -z "${bunInstallFlags-}" ] && [ -z "${bunInstallFlagsArray-}" ]; then
