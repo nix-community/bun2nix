@@ -96,8 +96,7 @@ in
             "${lib.getExe self'.packages.cacheEntryCreator}" \
               --out "$out/share/bun-cache" \
               --name "${name}" \
-              --package "$out/share/bun-packages/${name}" \
-              ${lib.optionalString hasPatch ''--patch-file "${patchFile}"''}
+              --package "$out/share/bun-packages/${name}"
 
             runHook postCacheEntry
           '';
