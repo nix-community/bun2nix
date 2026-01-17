@@ -37,6 +37,7 @@ const params = clap.parseParamsComptime(
     \\--out <path>       The $out directory to create and write to
     \\--name <str>       The package name (and version) as found in `bun.lock`
     \\--package <path>   The contents of the package to copy
+    \\--registry <str>   Optional registry hostname for non-default registries
     \\
 );
 
@@ -69,7 +70,7 @@ pub fn main() !void {
         return clap.usageToFile(.stdout(), clap.Help, &params);
     }
 
-    const linker = PkgLinker.init(res.args.out, res.args.name, res.args.package) orelse {
+    const linker = PkgLinker.init(res.args.out, res.args.name, res.args.package, res.args.registry) orelse {
         std.debug.print(cli_help, .{});
         return clap.usageToFile(.stdout(), clap.Help, &params);
     };
@@ -77,6 +78,7 @@ pub fn main() !void {
     const cache_entry_location = try cachedFolderPrintBasename(
         allocator,
         linker.name,
+        linker.registry,
     );
     defer allocator.free(cache_entry_location);
 
@@ -93,13 +95,15 @@ pub const PkgLinker = struct {
     out: []const u8,
     name: []const u8,
     package: []const u8,
+    registry: ?[]const u8,
 
     /// Create a new package linker
-    pub fn init(out: ?[]const u8, name: ?[]const u8, package: ?[]const u8) ?PkgLinker {
+    pub fn init(out: ?[]const u8, name: ?[]const u8, package: ?[]const u8, registry: ?[]const u8) ?PkgLinker {
         return PkgLinker{
             .out = out orelse return null,
             .name = name orelse return null,
             .package = package orelse return null,
+            .registry = registry,
         };
     }
 
@@ -153,6 +157,7 @@ pub const PkgLinker = struct {
 pub fn cachedFolderPrintBasename(
     allocator: mem.Allocator,
     input: []const u8,
+    registry: ?[]const u8,
 ) ![]u8 {
     return if (mem.startsWith(u8, input, "tarball:"))
         cachedTarballFolderPrintBasename(allocator, input)
@@ -161,18 +166,29 @@ pub fn cachedFolderPrintBasename(
     else if (mem.startsWith(u8, input, "git:"))
         cachedGitFolderPrintBasename(allocator, input)
     else
-        cachedNpmPackageFolderPrintBasename(allocator, input);
+        cachedNpmPackageFolderPrintBasename(allocator, input, registry);
 }
 
 /// Produce a correct bun cache folder name for a given npm identifier
 ///
 /// Adapted from [here](https://github.com/oven-sh/bun/blob/134341d2b48168cbb86f74879bf6c1c8e24b799c/src/install/PackageManager/PackageManagerDirectories.zig#L288)
+///
+/// When a non-default registry is used, the format includes the registry hostname:
+/// e.g., `@scope/pkg@1.0.0@@npm.pkg.github.com@@@1`
 pub fn cachedNpmPackageFolderPrintBasename(
     allocator: mem.Allocator,
     pkg: []const u8,
+    registry: ?[]const u8,
 ) ![]u8 {
+    // Suffix is "@@{registry}@@@1" for non-default registries, or "@@@1" for default
+    const suffix = if (registry) |reg|
+        try std.fmt.allocPrint(allocator, "@@{s}@@@1", .{reg})
+    else
+        try allocator.dupe(u8, "@@@1");
+    defer allocator.free(suffix);
+
     const version_start = mem.lastIndexOfScalar(u8, pkg, '@') orelse {
-        return std.fmt.allocPrint(allocator, "{s}@@@1", .{pkg});
+        return std.fmt.allocPrint(allocator, "{s}{s}", .{ pkg, suffix });
     };
     const name = pkg[0..version_start];
     const ver = pkg[version_start..];
@@ -185,18 +201,20 @@ pub fn cachedNpmPackageFolderPrintBasename(
             const pre = pre_and_build[0..buildIndex];
             const build = pre_and_build[buildIndex + 1 ..];
 
-            return std.fmt.allocPrint(allocator, "{s}{s}-{x:0>16}+{X:0>16}@@@1", .{
+            return std.fmt.allocPrint(allocator, "{s}{s}-{x:0>16}+{X:0>16}{s}", .{
                 name,
                 version,
                 wyhash(wyhash_seed, pre),
                 wyhash(wyhash_seed, build),
+                suffix,
             });
         }
 
-        return std.fmt.allocPrint(allocator, "{s}{s}-{x:0>16}@@@1", .{
+        return std.fmt.allocPrint(allocator, "{s}{s}-{x:0>16}{s}", .{
             name,
             version,
             wyhash(wyhash_seed, pre_and_build),
+            suffix,
         });
     }
 
@@ -204,14 +222,15 @@ pub fn cachedNpmPackageFolderPrintBasename(
         const version = ver[0..buildIndex];
         const build = ver[buildIndex + 1 ..];
 
-        return std.fmt.allocPrint(allocator, "{s}{s}+{X:0>16}@@@1", .{
+        return std.fmt.allocPrint(allocator, "{s}{s}+{X:0>16}{s}", .{
             name,
             version,
             wyhash(wyhash_seed, build),
+            suffix,
         });
     }
 
-    return std.fmt.allocPrint(allocator, "{s}@@@1", .{pkg});
+    return std.fmt.allocPrint(allocator, "{s}{s}", .{ pkg, suffix });
 }
 
 /// Produce a correct bun cache folder name for a given tarball dependency
@@ -276,19 +295,39 @@ fn testBaseNameFn(
     }
 }
 
+fn testNpmBaseNameFn(
+    tests: []const struct { []const u8, ?[]const u8, []const u8 },
+) !void {
+    for (tests) |case| {
+        const input, const registry, const output = case;
+
+        const res = try cachedNpmPackageFolderPrintBasename(testing_allocator, input, registry);
+        defer testing_allocator.free(res);
+
+        try expectEqualSlices(u8, output, res);
+    }
+}
+
 test "cachedNpmPackageFolderPrintBasename function" {
-    const tests = &[_]struct { []const u8, []const u8 }{
-        .{ "react@1.2.3-beta.1+build.123", "react@1.2.3-c0734e9369ab610d+F48F05ED5AABC3A0@@@1" },
-        .{ "tailwindcss@4.0.0-beta.9", "tailwindcss@4.0.0-73c5c46324e78b9b@@@1" },
-        .{ "react@1.2.3+build.123", "react@1.2.3+F48F05ED5AABC3A0@@@1" },
-        .{ "react@1.2.3", "react@1.2.3@@@1" },
-        .{ "undici-types@6.20.0", "undici-types@6.20.0@@@1" },
-        .{ "@types/react-dom@19.0.4", "@types/react-dom@19.0.4@@@1" },
-        .{ "react-compiler-runtime@19.0.0-beta-e552027-20250112", "react-compiler-runtime@19.0.0-0f3fc645a5103715@@@1" },
-        .{ "react-compiler-runtime@19.0.0-beta-e552027-20250112", "react-compiler-runtime@19.0.0-0f3fc645a5103715@@@1" },
+    const tests = &[_]struct { []const u8, ?[]const u8, []const u8 }{
+        // Without registry (default npm registry)
+        .{ "react@1.2.3-beta.1+build.123", null, "react@1.2.3-c0734e9369ab610d+F48F05ED5AABC3A0@@@1" },
+        .{ "tailwindcss@4.0.0-beta.9", null, "tailwindcss@4.0.0-73c5c46324e78b9b@@@1" },
+        .{ "react@1.2.3+build.123", null, "react@1.2.3+F48F05ED5AABC3A0@@@1" },
+        .{ "react@1.2.3", null, "react@1.2.3@@@1" },
+        .{ "undici-types@6.20.0", null, "undici-types@6.20.0@@@1" },
+        .{ "@types/react-dom@19.0.4", null, "@types/react-dom@19.0.4@@@1" },
+        .{ "react-compiler-runtime@19.0.0-beta-e552027-20250112", null, "react-compiler-runtime@19.0.0-0f3fc645a5103715@@@1" },
+        // With registry (non-default registry like GitHub Packages)
+        .{ "@scope/package@1.0.0", "npm.pkg.github.com", "@scope/package@1.0.0@@npm.pkg.github.com@@@1" },
+        .{ "private-pkg@2.0.0", "my.registry.com", "private-pkg@2.0.0@@my.registry.com@@@1" },
+        // With registry and pre-release version
+        .{ "@scope/pkg@1.0.0-beta.1", "npm.pkg.github.com", "@scope/pkg@1.0.0-c0734e9369ab610d@@npm.pkg.github.com@@@1" },
+        // With registry and build metadata
+        .{ "@scope/pkg@1.0.0+build.123", "npm.pkg.github.com", "@scope/pkg@1.0.0+F48F05ED5AABC3A0@@npm.pkg.github.com@@@1" },
     };
 
-    try testBaseNameFn(tests, cachedNpmPackageFolderPrintBasename);
+    try testNpmBaseNameFn(tests);
 }
 
 test "cachedTarballFolderPrintBasename function" {
