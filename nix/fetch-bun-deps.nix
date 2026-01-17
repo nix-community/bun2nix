@@ -135,7 +135,12 @@ let
       drv = fetchurl (args // authArgs);
     in
     # Preserve URL in passthru for registry extraction in build-package.nix
-    drv // { passthru = (drv.passthru or { }) // { inherit url; }; };
+    drv
+    // {
+      passthru = (drv.passthru or { }) // {
+        inherit url;
+      };
+    };
 in
 {
   options.perSystem = mkPerSystemOption {
