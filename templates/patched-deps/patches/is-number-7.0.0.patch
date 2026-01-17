@@ -1,0 +1,11 @@
+diff --git a/index.js b/index.js
+index 27f7296..1234567 100644
+--- a/index.js
++++ b/index.js
+@@ -1,3 +1,6 @@
++// PATCHED BY BUN2NIX
++module.exports.PATCHED = true;
++
+ /*!
+  * is-number <https://github.com/jonschlinkert/is-number>
+  *
