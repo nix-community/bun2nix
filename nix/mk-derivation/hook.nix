@@ -27,7 +27,7 @@ in
         propagatedBuildInputs = with config; [
           mkDerivation.bun2nixNoOp
           pkgs.bun
-          pkgs.jq
+          pkgs.yq-go
         ];
         substitutions = {
           bunDefaultInstallFlags =

@@ -91,11 +91,10 @@ function bunNodeModulesInstallPhase {
   # pre-patch packages during the Nix build. This ensures bun looks for
   # packages at the normal cache keys (without patch hash suffix).
   if [ -f package.json ] && grep -q '"patchedDependencies"' package.json 2>/dev/null; then
-    jq 'del(.patchedDependencies)' package.json > package.json.tmp && mv package.json.tmp package.json
+    yq -o=json 'del(.patchedDependencies)' package.json > package.json.tmp && mv package.json.tmp package.json
   fi
-  # bun.lock uses non-standard JSON with trailing commas, so use sed instead of jq
   if [ -f bun.lock ] && grep -q '"patchedDependencies"' bun.lock 2>/dev/null; then
-    sed -i.bak '/"patchedDependencies"/,/^  },$/d' bun.lock && rm -f bun.lock.bak
+    yq -o=json 'del(.patchedDependencies)' bun.lock > bun.lock.tmp && mv bun.lock.tmp bun.lock
   fi
 
   local flagsArray=()
