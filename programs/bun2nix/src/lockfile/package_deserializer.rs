@@ -186,21 +186,18 @@ impl PackageDeserializer {
             "File path can never contain http, because then it would be a tarball"
         );
 
-        if let Some(stripped) = Self::drain_after_substring(path.clone(), "file:") {
-            return Ok(Package::new(name, Fetcher::CopyToStore { path: stripped }));
-        }
+        // Strip prefix: explicit "file:" or implicit "./" (Bun strips file: for local tarballs)
+        let path = path
+            .strip_prefix("file:")
+            .or_else(|| path.strip_prefix("./"))
+            .ok_or(Error::MissingFileSpecifier)?;
 
-        // Strip ./ prefix since the template adds it back
-        if let Some(stripped) = path.strip_prefix("./") {
-            return Ok(Package::new(
-                name,
-                Fetcher::CopyToStore {
-                    path: stripped.to_string(),
-                },
-            ));
-        }
-
-        Err(Error::MissingFileSpecifier)
+        Ok(Package::new(
+            name,
+            Fetcher::CopyToStore {
+                path: path.to_string(),
+            },
+        ))
     }
 
     /// # Deserialize a tarball package
