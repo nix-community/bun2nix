@@ -74,8 +74,20 @@ fn run() -> Result<()> {
             PackageKind::Workspace { path } => {
                 let key_path = parse_key_path(&pkg.key);
                 let target_path = get_node_modules_path(out_dir, &key_path);
+                let workspace_full_path = out_dir.join(path);
+
+                if !workspace_full_path.exists() {
+                    eprintln!(
+                        "  Skipping workspace {}: path does not exist ({})",
+                        pkg.key,
+                        workspace_full_path.display()
+                    );
+                    skipped_other += 1;
+                    continue;
+                }
+
                 let absolute_workspace_path =
-                    fs::canonicalize(out_dir.join(path)).unwrap_or_else(|_| out_dir.join(path));
+                    fs::canonicalize(&workspace_full_path).unwrap_or_else(|_| workspace_full_path);
 
                 let canonical_out =
                     fs::canonicalize(out_dir).unwrap_or_else(|_| out_dir.to_path_buf());

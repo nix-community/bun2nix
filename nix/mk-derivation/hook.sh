@@ -87,6 +87,24 @@ function bunNodeModulesInstallPhase {
   pushd "$bunRoot" || exit 1
   runHook preBunNodeModulesInstallPhase
 
+  # Copy workspace root lockfile into the build directory if provided.
+  if [ -n "${bunLockFile-}" ]; then
+    echo "Copying workspace lockfile into build directory..."
+    cp "$bunLockFile" bun.lock
+    chmod +w bun.lock
+  fi
+
+  # Strip workspace dependencies from package.json so bun doesn't
+  # try to resolve them as workspace links.
+  if [ -n "${bunWorkspaceDeps-}" ]; then
+    echo "Stripping workspace deps from package.json..."
+    while IFS=$'\t' read -r depName _depPath; do
+      [ -z "$depName" ] && continue
+      export BUN2NIX_DEP="$depName"
+      yq -o=json -i 'del(.dependencies[strenv(BUN2NIX_DEP)])' package.json
+    done <<<"$bunWorkspaceDeps"
+  fi
+
   echo "Constructing node_modules from cache (no network)..."
   @modulePopulator@ --cache-dir "$BUN_INSTALL_CACHE_DIR"
 
@@ -97,6 +115,19 @@ function bunNodeModulesInstallPhase {
   fi
   if [ -f bun.lock ] && grep -q '"patchedDependencies"' bun.lock 2>/dev/null; then
     yq -o=json 'del(.patchedDependencies)' bun.lock >bun.lock.tmp && mv bun.lock.tmp bun.lock
+  fi
+
+  # Restructure the lockfile to promote a single workspace member to root.
+  if [ -n "${bunWorkspace-}" ]; then
+    echo "Promoting workspace \"$bunWorkspace\" to lockfile root..."
+    local stripArgs=()
+    if [ -n "${bunWorkspaceDeps-}" ]; then
+      while IFS=$'\t' read -r depName _depPath; do
+        [ -z "$depName" ] && continue
+        stripArgs+=(--strip-dep "$depName")
+      done <<<"$bunWorkspaceDeps"
+    fi
+    @workspacePromoter@ --workspace "$bunWorkspace" --package-json package.json "${stripArgs[@]}" bun.lock
   fi
 
   # Let bun reconcile its internal metadata (e.g. node_modules/.bun)
@@ -116,6 +147,19 @@ function bunNodeModulesInstallPhase {
 
   echoCmd 'bun install flags' "${flagsArray[@]}"
   bun install "${flagsArray[@]}"
+
+  # Link workspace dependencies into node_modules from their store paths.
+  if [ -n "${bunWorkspaceDeps-}" ]; then
+    echo "Linking workspace dependencies into node_modules..."
+    while IFS=$'\t' read -r depName depPath; do
+      [ -z "$depName" ] && continue
+      local targetDir="node_modules/$depName"
+      mkdir -p "$(dirname "$targetDir")"
+      cp -rL "$depPath" "$targetDir"
+      chmod -R u+w "$targetDir"
+      echo "  Linked $depName -> $depPath"
+    done <<<"$bunWorkspaceDeps"
+  fi
 
   runHook postBunNodeModulesInstallPhase
   popd || exit 1

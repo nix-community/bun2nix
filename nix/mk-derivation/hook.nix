@@ -36,6 +36,7 @@ in
         ];
         substitutions = {
           modulePopulator = lib.getExe self'.packages.modulePopulator;
+          workspacePromoter = lib.getExe self'.packages.workspacePromoter;
           bunDefaultInstallFlags =
             if pkgs.stdenv.hostPlatform.isDarwin then
               [
