@@ -67,6 +67,12 @@ fn promote(root: &mut Value, workspace: &str, strip_deps: &[String]) -> Result<M
         }
     }
 
+    // Remove stripped workspace deps from sibling deps to prevent them from
+    // being re-added during the merge step.
+    for dep_name in strip_deps {
+        sibling_deps.remove(dep_name.as_str());
+    }
+
     // Take the target workspace value out.
     let promoted = workspaces
         .remove(workspace)
@@ -368,6 +374,66 @@ mod tests {
         merge_deps_into_package_json(&mut pkg, &sibling);
 
         assert_eq!(pkg["dependencies"]["shared"], "^1.0.0");
+    }
+
+    #[test]
+    fn promote_does_not_reintroduce_stripped_transitive_deps() {
+        // When @workspace/lib depends on @workspace/util (also stripped),
+        // @workspace/util should not appear in the promoted root.
+        let mut lock = json!({
+            "lockfileVersion": 1,
+            "workspaces": {
+                "": { "name": "root" },
+                "packages/app": {
+                    "name": "@workspace/app",
+                    "version": "1.0.0",
+                    "dependencies": {
+                        "@workspace/lib": "workspace:*",
+                        "is-odd": "^3.0.1"
+                    }
+                },
+                "packages/lib": {
+                    "name": "@workspace/lib",
+                    "version": "1.0.0",
+                    "dependencies": {
+                        "@workspace/util": "workspace:*",
+                        "is-number": "^6.0.0"
+                    }
+                },
+                "packages/util": {
+                    "name": "@workspace/util",
+                    "version": "1.0.0"
+                }
+            },
+            "packages": {
+                "@workspace/app": ["@workspace/app@workspace:packages/app"],
+                "@workspace/lib": ["@workspace/lib@workspace:packages/lib"],
+                "@workspace/util": ["@workspace/util@workspace:packages/util"],
+                "is-odd": ["is-odd@3.0.1", "", {}, "sha512-abc=="],
+                "is-number": ["is-number@6.0.0", "", {}, "sha512-def=="]
+            }
+        });
+
+        let strip = vec![
+            "@workspace/lib".to_string(),
+            "@workspace/util".to_string(),
+        ];
+        promote(&mut lock, "packages/app", &strip).unwrap();
+
+        let deps = lock["workspaces"][""]["dependencies"].as_object().unwrap();
+        assert!(
+            !deps.contains_key("@workspace/lib"),
+            "stripped dep should not appear"
+        );
+        assert!(
+            !deps.contains_key("@workspace/util"),
+            "transitive stripped dep should not be re-added"
+        );
+        assert!(deps.contains_key("is-odd"), "direct dep should remain");
+        assert!(
+            deps.contains_key("is-number"),
+            "sibling non-workspace dep should be merged"
+        );
     }
 
     #[test]
