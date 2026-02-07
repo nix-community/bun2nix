@@ -14,7 +14,7 @@ in
     {
       packages = rec {
         bun2nix = pkgs.rustPlatform.buildRustPackage (
-          finalAttrs:
+          _finalAttrs:
           let
             pkgInfo = rootConfig.cargoTOML.package;
           in
@@ -22,11 +22,20 @@ in
             pname = pkgInfo.name;
             inherit (pkgInfo) version;
 
-            src = ../programs/bun2nix;
+            src = ../programs;
 
             cargoLock = {
-              lockFile = "${finalAttrs.src}/Cargo.lock";
+              lockFile = ../programs/Cargo.lock;
             };
+
+            cargoBuildFlags = [
+              "-p"
+              "bun2nix"
+            ];
+            cargoTestFlags = [
+              "-p"
+              "bun2nix"
+            ];
 
             passthru = with config; {
               inherit (mkDerivation) hook;

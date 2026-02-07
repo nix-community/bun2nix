@@ -27,7 +27,7 @@ pub fn convert_lockfile_to_nix_expression(contents: String, options: Options) ->
     let lockfile = contents.parse::<Lockfile>()?;
 
     if lockfile.lockfile_version != 1 {
-        return Err(Error::UnsupportedLockfileVersion(lockfile.lockfile_version));
+        return Err(bun_rs::Error::UnsupportedLockfileVersion(lockfile.lockfile_version).into());
     };
 
     let mut packages = lockfile.packages();

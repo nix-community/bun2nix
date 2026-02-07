@@ -87,9 +87,11 @@ function bunNodeModulesInstallPhase {
   pushd "$bunRoot" || exit 1
   runHook preBunNodeModulesInstallPhase
 
+  echo "Constructing node_modules from cache (no network)..."
+  @modulePopulator@ --cache-dir "$BUN_INSTALL_CACHE_DIR"
+
   # Remove patchedDependencies from package.json and bun.lock since we
-  # pre-patch packages during the Nix build. This ensures bun looks for
-  # packages at the normal cache keys (without patch hash suffix).
+  # pre-patch packages during the Nix build.
   if [ -f package.json ] && grep -q '"patchedDependencies"' package.json 2>/dev/null; then
     yq -o=json 'del(.patchedDependencies)' package.json >package.json.tmp && mv package.json.tmp package.json
   fi
@@ -97,6 +99,9 @@ function bunNodeModulesInstallPhase {
     yq -o=json 'del(.patchedDependencies)' bun.lock >bun.lock.tmp && mv bun.lock.tmp bun.lock
   fi
 
+  # Let bun reconcile its internal metadata (e.g. node_modules/.bun)
+  # with the pre-populated node_modules. This is fast since all
+  # packages are already in the cache.
   local flagsArray=()
   if [ -z "${bunInstallFlags-}" ] && [ -z "${bunInstallFlagsArray-}" ]; then
     concatTo flagsArray \
@@ -120,19 +125,9 @@ function bunLifecycleScriptsPhase {
   pushd "$bunRoot" || exit 1
   runHook preBunLifecycleScriptsPhase
 
-  chmod -R u+rwx ./node_modules
-
-  local flagsArray=()
-  if [ -z "${bunInstallFlags-}" ] && [ -z "${bunInstallFlagsArray-}" ]; then
-    concatTo flagsArray \
-      bunDefaultInstallFlagsArray
-  else
-    concatTo flagsArray \
-      bunInstallFlags bunInstallFlagsArray
+  if [ -d ./node_modules ]; then
+    echo "Skipping lifecycle scripts (node_modules constructed from cache)."
   fi
-
-  echoCmd 'bun lifecycle install flags' "${flagsArray[@]}"
-  bun install "${flagsArray[@]}"
 
   runHook postBunLifecycleScriptsPhase
   popd || exit 1
