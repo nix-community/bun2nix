@@ -159,6 +159,19 @@ function bunNodeModulesInstallPhase {
       chmod -R u+w "$targetDir"
       echo "  Linked $depName -> $depPath"
     done <<<"$bunWorkspaceDeps"
+
+    # Bundlers resolve imports from workspace dependency source files by
+    # walking up the directory tree looking for node_modules. When the
+    # build runs in a subdirectory, the source tree root has none. Create
+    # a symlink there so that all workspace dependency imports resolve.
+    local parentDir
+    parentDir="$(cd .. && pwd)"
+    if [ "$parentDir" != "$bunRoot" ] && ! [ -e "$parentDir/node_modules" ]; then
+      chmod u+w "$parentDir"
+      local relPath
+      relPath="$(realpath --relative-to="$parentDir" "$bunRoot")"
+      ln -s "$relPath/node_modules" "$parentDir/node_modules"
+    fi
   fi
 
   runHook postBunNodeModulesInstallPhase
