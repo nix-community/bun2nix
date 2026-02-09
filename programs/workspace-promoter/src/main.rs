@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::fs;
 use std::path::PathBuf;
 
@@ -151,6 +152,74 @@ fn merge_deps_into_package_json(pkg: &mut Value, sibling_deps: &Map<String, Valu
     }
 }
 
+/// Serialise a JSON value to bun's JSONC lockfile format: 2-space
+/// indentation with trailing commas after every array element and
+/// object entry.
+fn to_jsonc(value: &Value) -> String {
+    let mut buf = String::new();
+    write_jsonc_value(&mut buf, value, 0);
+    buf.push('\n');
+    buf
+}
+
+fn write_jsonc_value(buf: &mut String, value: &Value, depth: usize) {
+    match value {
+        Value::Null => buf.push_str("null"),
+        Value::Bool(b) => write!(buf, "{b}").unwrap(),
+        Value::Number(n) => write!(buf, "{n}").unwrap(),
+        Value::String(s) => {
+            buf.push('"');
+            for ch in s.chars() {
+                match ch {
+                    '"' => buf.push_str("\\\""),
+                    '\\' => buf.push_str("\\\\"),
+                    '\n' => buf.push_str("\\n"),
+                    '\r' => buf.push_str("\\r"),
+                    '\t' => buf.push_str("\\t"),
+                    c if c.is_control() => write!(buf, "\\u{:04x}", c as u32).unwrap(),
+                    c => buf.push(c),
+                }
+            }
+            buf.push('"');
+        }
+        Value::Array(arr) => {
+            if arr.is_empty() {
+                buf.push_str("[]");
+                return;
+            }
+            buf.push_str("[\n");
+            for item in arr {
+                write_indent(buf, depth + 1);
+                write_jsonc_value(buf, item, depth + 1);
+                buf.push_str(",\n");
+            }
+            write_indent(buf, depth);
+            buf.push(']');
+        }
+        Value::Object(map) => {
+            if map.is_empty() {
+                buf.push_str("{}");
+                return;
+            }
+            buf.push_str("{\n");
+            for (key, val) in map {
+                write_indent(buf, depth + 1);
+                write!(buf, "\"{key}\": ").unwrap();
+                write_jsonc_value(buf, val, depth + 1);
+                buf.push_str(",\n");
+            }
+            write_indent(buf, depth);
+            buf.push('}');
+        }
+    }
+}
+
+fn write_indent(buf: &mut String, depth: usize) {
+    for _ in 0..depth {
+        buf.push_str("  ");
+    }
+}
+
 fn run() -> Result<()> {
     let cli = Cli::parse();
 
@@ -173,8 +242,8 @@ fn run() -> Result<()> {
         }
     }
 
-    let output = serde_json::to_string_pretty(&root).unwrap();
-    fs::write(&cli.lockfile, format!("{output}\n"))?;
+    let output = to_jsonc(&root);
+    fs::write(&cli.lockfile, output)?;
 
     println!("Promoted workspace \"{}\" to lockfile root.", cli.workspace);
 
