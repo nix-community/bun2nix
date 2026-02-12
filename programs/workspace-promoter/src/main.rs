@@ -483,10 +483,7 @@ mod tests {
             }
         });
 
-        let strip = vec![
-            "@workspace/lib".to_string(),
-            "@workspace/util".to_string(),
-        ];
+        let strip = vec!["@workspace/lib".to_string(), "@workspace/util".to_string()];
         promote(&mut lock, "packages/app", &strip).unwrap();
 
         let deps = lock["workspaces"][""]["dependencies"].as_object().unwrap();
