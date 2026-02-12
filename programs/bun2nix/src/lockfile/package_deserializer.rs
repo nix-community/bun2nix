@@ -172,15 +172,32 @@ impl PackageDeserializer {
     /// Deserialize a file package from it's bun lockfile representation
     ///
     /// This is found in the source as a tuple of arity 2
+    ///
+    /// Handles both explicit `file:` prefix and inferred local paths.
+    /// Bun strips the `file:` prefix for local tarballs in the packages section,
+    /// so we need to infer local paths from `./` prefixes.
+    ///
+    /// See:
+    /// - https://github.com/oven-sh/bun/blob/7ebfdf97a872908aeacce7af7eba21658b265ad7/src/install/dependency.zig#L514-L517
+    /// - https://github.com/oven-sh/bun/blob/7ebfdf97a872908aeacce7af7eba21658b265ad7/src/install/resolution.zig#L46-L59
     pub fn deserialize_file_package(name: String, path: String) -> Result<Package> {
         debug_assert!(
             !path.contains("http"),
             "File path can never contain http, because then it would be a tarball"
         );
 
-        let path = Self::drain_after_substring(path, "file:").ok_or(Error::MissingFileSpecifier)?;
+        // Strip prefix: explicit "file:" or implicit "./" (Bun strips file: for local tarballs)
+        let path = path
+            .strip_prefix("file:")
+            .or_else(|| path.strip_prefix("./"))
+            .ok_or(Error::MissingFileSpecifier)?;
 
-        Ok(Package::new(name, Fetcher::CopyToStore { path }))
+        Ok(Package::new(
+            name,
+            Fetcher::CopyToStore {
+                path: path.to_string(),
+            },
+        ))
     }
 
     /// # Deserialize a tarball package

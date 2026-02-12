@@ -6,7 +6,7 @@
       checks.arbitraryInstallCompletes = pkgs.stdenv.mkDerivation {
         name = "bun2nix-exec-test";
 
-        outputHash = "sha256-GoSIjTviHvKwApXYivLwwVMPvp32fqgqpSxlLGpBgUg=";
+        outputHash = "sha256-mYoND6xD+uEgKjq17hDWPe5pEEnwmSNfHPCqE4R+B5E=";
         outputHashAlgo = "sha256";
         outputHashMode = "recursive";
 
@@ -17,10 +17,16 @@
           cacert
           git
           nixfmt
+          gnutar
+          gzip
         ];
 
         installPhase = ''
           PWD="$(pwd)"
+
+          # Create local tarball for testing bun2nix's handling of local tarballs
+          # without file: prefix (Bun strips it in the packages section).
+          bash ./local-tarball/setup.sh
 
           export NIX_STATE_DIR=$PWD/nix-state
           export NIX_STORE_DIR=$PWD/nix-store

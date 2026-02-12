@@ -3,6 +3,7 @@
 To install dependencies:
 
 ```bash
+./local-tarball/setup.sh
 bun install
 ```
 

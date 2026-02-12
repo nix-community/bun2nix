@@ -35,7 +35,7 @@
         '';
       };
     in
-    {
+    rec {
       packages.docs = pkgs.stdenv.mkDerivation {
         name = "bun2nix-docs";
 
@@ -59,5 +59,6 @@
 
         meta.mainProgram = "serve-book";
       };
+      checks.docs = packages.docs;
     };
 }

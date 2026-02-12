@@ -36,6 +36,8 @@ in
             # Bun binaries built by this derivation become broken by the default fixupPhase
             dontFixup ? !(args ? buildPhase),
             bunCompileToBytecode ? true,
+            removeBunBuildFlags ? [ ],
+            extraBunBuildFlags ? [ ],
             ...
           }@args:
 
@@ -115,9 +117,11 @@ in
             bunBuildFlags =
               if (args ? bunBuildFlags) then
                 args.bunBuildFlags
+              else if module == null then
+                [ ]
               else
-                lib.optionals (module != null) (
-                  [
+                let
+                  defaultBuildFlags = [
                     "${module}"
                     "--outfile"
                     "${pname}"
@@ -125,8 +129,10 @@ in
                     "--minify"
                     "--sourcemap"
                   ]
-                  ++ lib.optional bunCompileToBytecode "--bytecode"
-                );
+                  ++ extraBunBuildFlags
+                  ++ lib.optional bunCompileToBytecode "--bytecode";
+                in
+                lib.lists.subtractLists removeBunBuildFlags defaultBuildFlags;
 
             meta.mainProgram = pname;
 

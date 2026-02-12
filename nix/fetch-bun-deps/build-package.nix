@@ -128,7 +128,7 @@ in
             runHook prePatch
 
             ${lib.optionalString patchShebangs ''patchShebangs "$out/share/bun-packages"''}
-            ${lib.optionalString autoPatchElf ''runHook autoPatchelfPostFixup''}
+            ${lib.optionalString autoPatchElf "runHook autoPatchelfPostFixup"}
 
             runHook postPatch
           '';
