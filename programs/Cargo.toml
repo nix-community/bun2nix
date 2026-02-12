@@ -1,0 +1,7 @@
+[profile.release]
+lto = true
+codegen-units = 1
+
+[workspace]
+members = ["bun-rs", "bun2nix", "module-populator", "workspace-promoter"]
+resolver = "2"

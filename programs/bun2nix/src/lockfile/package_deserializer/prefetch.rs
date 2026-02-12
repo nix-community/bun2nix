@@ -58,6 +58,6 @@ Disable these warnings with `RUST_LOG=error` or `RUST_LOG=off`
             return Err(Error::FetchingError(stderr.to_string()));
         }
 
-        Ok(serde_json::from_str(stdout)?)
+        serde_json::from_str(stdout).map_err(|e| bun_rs::Error::from(e).into())
     }
 }

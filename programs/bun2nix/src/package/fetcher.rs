@@ -5,10 +5,7 @@ use std::{fmt::Debug, hash::Hash};
 use askama::Template;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    Options,
-    error::{Error, Result},
-};
+use crate::{Options, error::Result};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, Ord, PartialEq, PartialOrd, Hash, Template)]
 /// # Package Fetcher
@@ -147,7 +144,7 @@ impl Fetcher {
         // Otherwise, construct the URL from the default registry
         let Some((user, name_and_ver)) = ident.split_once("/") else {
             let Some((name, ver)) = ident.split_once("@") else {
-                return Err(Error::NoAtInPackageIdentifier);
+                return Err(bun_rs::Error::NoAtInPackageIdentifier.into());
             };
 
             return Ok(format!(
@@ -157,7 +154,7 @@ impl Fetcher {
         };
 
         let Some((name, ver)) = name_and_ver.split_once("@") else {
-            return Err(Error::NoAtInPackageIdentifier);
+            return Err(bun_rs::Error::NoAtInPackageIdentifier.into());
         };
 
         Ok(format!(

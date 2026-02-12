@@ -87,9 +87,29 @@ function bunNodeModulesInstallPhase {
   pushd "$bunRoot" || exit 1
   runHook preBunNodeModulesInstallPhase
 
+  # Copy workspace root lockfile into the build directory if provided.
+  if [ -n "${bunLockFile-}" ]; then
+    echo "Copying workspace lockfile into build directory..."
+    cp "$bunLockFile" bun.lock
+    chmod +w bun.lock
+  fi
+
+  # Strip workspace dependencies from package.json so bun doesn't
+  # try to resolve them as workspace links.
+  if [ -n "${bunWorkspaceDeps-}" ]; then
+    echo "Stripping workspace deps from package.json..."
+    while IFS=$'\t' read -r depName _depPath; do
+      [ -z "$depName" ] && continue
+      export BUN2NIX_DEP="$depName"
+      yq -o=json -i 'del(.dependencies[strenv(BUN2NIX_DEP)])' package.json
+    done <<<"$bunWorkspaceDeps"
+  fi
+
+  echo "Constructing node_modules from cache (no network)..."
+  @modulePopulator@ --cache-dir "$BUN_INSTALL_CACHE_DIR"
+
   # Remove patchedDependencies from package.json and bun.lock since we
-  # pre-patch packages during the Nix build. This ensures bun looks for
-  # packages at the normal cache keys (without patch hash suffix).
+  # pre-patch packages during the Nix build.
   if [ -f package.json ] && grep -q '"patchedDependencies"' package.json 2>/dev/null; then
     yq -o=json 'del(.patchedDependencies)' package.json >package.json.tmp && mv package.json.tmp package.json
   fi
@@ -97,6 +117,22 @@ function bunNodeModulesInstallPhase {
     yq -o=json 'del(.patchedDependencies)' bun.lock >bun.lock.tmp && mv bun.lock.tmp bun.lock
   fi
 
+  # Restructure the lockfile to promote a single workspace member to root.
+  if [ -n "${bunWorkspace-}" ]; then
+    echo "Promoting workspace \"$bunWorkspace\" to lockfile root..."
+    local stripArgs=()
+    if [ -n "${bunWorkspaceDeps-}" ]; then
+      while IFS=$'\t' read -r depName _depPath; do
+        [ -z "$depName" ] && continue
+        stripArgs+=(--strip-dep "$depName")
+      done <<<"$bunWorkspaceDeps"
+    fi
+    @workspacePromoter@ --workspace "$bunWorkspace" --package-json package.json "${stripArgs[@]}" bun.lock
+  fi
+
+  # Let bun reconcile its internal metadata (e.g. node_modules/.bun)
+  # with the pre-populated node_modules. This is fast since all
+  # packages are already in the cache.
   local flagsArray=()
   if [ -z "${bunInstallFlags-}" ] && [ -z "${bunInstallFlagsArray-}" ]; then
     concatTo flagsArray \
@@ -112,6 +148,32 @@ function bunNodeModulesInstallPhase {
   echoCmd 'bun install flags' "${flagsArray[@]}"
   bun install "${flagsArray[@]}"
 
+  # Link workspace dependencies into node_modules from their store paths.
+  if [ -n "${bunWorkspaceDeps-}" ]; then
+    echo "Linking workspace dependencies into node_modules..."
+    while IFS=$'\t' read -r depName depPath; do
+      [ -z "$depName" ] && continue
+      local targetDir="node_modules/$depName"
+      mkdir -p "$(dirname "$targetDir")"
+      cp -rL "$depPath" "$targetDir"
+      chmod -R u+w "$targetDir"
+      echo "  Linked $depName -> $depPath"
+    done <<<"$bunWorkspaceDeps"
+
+    # Bundlers resolve imports from workspace dependency source files by
+    # walking up the directory tree looking for node_modules. When the
+    # build runs in a subdirectory, the source tree root has none. Create
+    # a symlink there so that all workspace dependency imports resolve.
+    local parentDir
+    parentDir="$(cd .. && pwd)"
+    if [ "$parentDir" != "$bunRoot" ] && ! [ -e "$parentDir/node_modules" ]; then
+      chmod u+w "$parentDir"
+      local relPath
+      relPath="$(realpath --relative-to="$parentDir" "$bunRoot")"
+      ln -s "$relPath/node_modules" "$parentDir/node_modules"
+    fi
+  fi
+
   runHook postBunNodeModulesInstallPhase
   popd || exit 1
 }
@@ -120,19 +182,9 @@ function bunLifecycleScriptsPhase {
   pushd "$bunRoot" || exit 1
   runHook preBunLifecycleScriptsPhase
 
-  chmod -R u+rwx ./node_modules
-
-  local flagsArray=()
-  if [ -z "${bunInstallFlags-}" ] && [ -z "${bunInstallFlagsArray-}" ]; then
-    concatTo flagsArray \
-      bunDefaultInstallFlagsArray
-  else
-    concatTo flagsArray \
-      bunInstallFlags bunInstallFlagsArray
+  if [ -d ./node_modules ]; then
+    echo "Skipping lifecycle scripts (node_modules constructed from cache)."
   fi
-
-  echoCmd 'bun lifecycle install flags' "${flagsArray[@]}"
-  bun install "${flagsArray[@]}"
 
   runHook postBunLifecycleScriptsPhase
   popd || exit 1
