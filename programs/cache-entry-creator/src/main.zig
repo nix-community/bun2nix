@@ -111,14 +111,16 @@ pub const PkgLinker = struct {
     ///
     /// Creates a new cache entry at the output location passed.
     ///
-    /// Only the leaf nodes may be symlinks hence yhis creates one of two cases:
+    /// Only the leaf nodes may be symlinks hence this creates one of two cases:
     ///
     /// typescript@4.0.0
-    /// - Create a symlink at $out/typescript@4.0.0
+    /// - Create a symlink at $out/typescript@4.0.0@@@1
+    /// - Create index symlink at $out/typescript/4.0.0@@@1 -> $out/typescript@4.0.0@@@1
     ///
-    /// @types/bun
+    /// @types/bun@1.0.0
     /// - Create parent directory $out/@types
-    /// - Create a symlink at $out/@types/bun
+    /// - Create a symlink at $out/@types/bun@1.0.0@@@1
+    /// - Create index symlink at $out/@types/bun/1.0.0@@@1 -> $out/@types/bun@1.0.0@@@1
     pub fn create_cache_entry(
         linker: PkgLinker,
         allocator: mem.Allocator,
@@ -151,6 +153,80 @@ pub const PkgLinker = struct {
             link_out_absolute,
             .{ .is_directory = true },
         );
+
+        // Create index directory symlink (e.g., react/18.2.0@@@1 -> react@18.2.0@@@1)
+        // This is required for bun to resolve packages from cache
+        try linker.create_index_entry(allocator, cache_entry_location);
+    }
+
+    /// # Create index entry
+    ///
+    /// Creates an index directory with a symlink to the main cache entry.
+    /// For example, for `react@18.2.0@@@1`, creates:
+    /// - Directory: $out/react/
+    /// - Symlink: $out/react/18.2.0@@@1 -> $out/react@18.2.0@@@1
+    ///
+    /// For scoped packages like `@types/react@19.2.8@@@1`, creates:
+    /// - Directory: $out/@types/react/
+    /// - Symlink: $out/@types/react/19.2.8@@@1 -> $out/@types/react@19.2.8@@@1
+    fn create_index_entry(
+        linker: PkgLinker,
+        allocator: mem.Allocator,
+        cache_entry_location: []const u8,
+    ) !void {
+        // Skip special prefixed entries (tarballs, github, git)
+        if (mem.startsWith(u8, cache_entry_location, "@T@") or
+            mem.startsWith(u8, cache_entry_location, "@GH@") or
+            mem.startsWith(u8, cache_entry_location, "@G@"))
+        {
+            std.log.debug("Skipping index entry for special package type.\n", .{});
+            return;
+        }
+
+        // Find the version separator (@) - for scoped packages, skip the first @
+        const start_idx: usize = if (mem.startsWith(u8, cache_entry_location, "@")) blk: {
+            // Scoped package: find the slash after scope, then find @ after that
+            const slash_idx = mem.indexOfScalar(u8, cache_entry_location, '/') orelse return;
+            break :blk slash_idx + 1;
+        } else 0;
+
+        const search_slice = cache_entry_location[start_idx..];
+        const version_at_idx = mem.indexOfScalar(u8, search_slice, '@') orelse {
+            std.log.debug("No version separator found, skipping index entry.\n", .{});
+            return;
+        };
+
+        const full_version_idx = start_idx + version_at_idx;
+        const pkg_name = cache_entry_location[0..full_version_idx];
+        const version_part = cache_entry_location[full_version_idx + 1 ..]; // skip the @
+
+        std.log.debug("Package name: `{s}`, version part: `{s}`.\n", .{ pkg_name, version_part });
+
+        // Create index directory path: $out/{pkg_name}/
+        const index_dir = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ linker.out, pkg_name });
+        defer allocator.free(index_dir);
+
+        try fs.cwd().makePath(index_dir);
+        std.log.debug("Created index directory: `{s}`.\n", .{index_dir});
+
+        // Create index symlink: $out/{pkg_name}/{version_part} -> $out/{cache_entry_location}
+        const index_link = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ index_dir, version_part });
+        defer allocator.free(index_link);
+
+        const target = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ linker.out, cache_entry_location });
+        defer allocator.free(target);
+
+        std.log.debug("Creating index symlink: `{s}` -> `{s}`.\n", .{ index_link, target });
+
+        fs.symLinkAbsolute(target, index_link, .{ .is_directory = true }) catch |err| {
+            if (err == error.PathAlreadyExists) {
+                std.log.debug("Index symlink already exists, skipping.\n", .{});
+                return;
+            }
+            return err;
+        };
+
+        std.log.info("Created index entry: `{s}/{s}`.\n", .{ pkg_name, version_part });
     }
 };
 
