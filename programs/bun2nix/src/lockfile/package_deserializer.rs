@@ -1,7 +1,7 @@
 use crate::{
-    Package,
     error::{Error, Result},
     package::Fetcher,
+    Package,
 };
 
 mod prefetch;
@@ -158,12 +158,39 @@ impl PackageDeserializer {
     /// tarballs
     pub fn deserialize_tarball_or_file_package(mut self) -> Result<Package> {
         let id = swap_remove_value(&mut self.values, 0);
-        let path = Self::drain_after_substring(id, "@").ok_or(Error::NoAtInPackageIdentifier)?;
+        let path = Self::extract_version_or_url(&id).ok_or(Error::NoAtInPackageIdentifier)?;
 
         if path.starts_with("http") {
-            Self::deserialize_tarball_package(path)
+            Self::deserialize_tarball_package(path.to_string())
         } else {
-            Self::deserialize_file_package(self.name, path)
+            Self::deserialize_file_package(self.name, path.to_string())
+        }
+    }
+
+    /// # Extract version or URL from package identifier
+    ///
+    /// For identifiers like `name@version` or `@scope/name@version`,
+    /// extracts the version/URL part after the package name.
+    ///
+    /// For scoped packages (`@scope/name@version`), finds the `@` after the `/`.
+    /// For unscoped packages (`name@version`), finds the first `@`.
+    ///
+    /// ## Examples
+    /// - `foo@1.0.0` -> `1.0.0`
+    /// - `@types/node@1.0.0` -> `1.0.0`
+    /// - `@solidjs/start@https://pkg.pr.new/@solidjs/start@dfb2020` -> `https://pkg.pr.new/@solidjs/start@dfb2020`
+    fn extract_version_or_url(id: &str) -> Option<&str> {
+        if id.starts_with('@') {
+            // Scoped package: @scope/name@version
+            // Find the '/' first, then find '@' after it
+            let slash_pos = id.find('/')?;
+            let rest = &id[slash_pos + 1..];
+            let at_pos = rest.find('@')?;
+            Some(&rest[at_pos + 1..])
+        } else {
+            // Unscoped package: name@version
+            let at_pos = id.find('@')?;
+            Some(&id[at_pos + 1..])
         }
     }
 
@@ -318,4 +345,66 @@ pub fn drop_prefix(mut input: String, prefix: &str) -> String {
     }
 
     input
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_version_or_url_unscoped() {
+        assert_eq!(
+            PackageDeserializer::extract_version_or_url("foo@1.0.0"),
+            Some("1.0.0")
+        );
+    }
+
+    #[test]
+    fn test_extract_version_or_url_scoped() {
+        assert_eq!(
+            PackageDeserializer::extract_version_or_url("@types/node@1.0.0"),
+            Some("1.0.0")
+        );
+    }
+
+    #[test]
+    fn test_extract_version_or_url_tarball_with_at_symbols() {
+        // This is the case that was failing: tarball URLs containing @ symbols
+        assert_eq!(
+            PackageDeserializer::extract_version_or_url(
+                "@solidjs/start@https://pkg.pr.new/@solidjs/start@dfb2020"
+            ),
+            Some("https://pkg.pr.new/@solidjs/start@dfb2020")
+        );
+    }
+
+    #[test]
+    fn test_extract_version_or_url_file_path() {
+        assert_eq!(
+            PackageDeserializer::extract_version_or_url("my-package@file:./local-pkg"),
+            Some("file:./local-pkg")
+        );
+    }
+
+    #[test]
+    fn test_extract_version_or_url_scoped_file_path() {
+        assert_eq!(
+            PackageDeserializer::extract_version_or_url("@my-scope/pkg@./local-path"),
+            Some("./local-path")
+        );
+    }
+
+    #[test]
+    fn test_extract_version_or_url_no_at() {
+        assert_eq!(PackageDeserializer::extract_version_or_url("invalid"), None);
+    }
+
+    #[test]
+    fn test_extract_version_or_url_scoped_no_version() {
+        // Scoped package without version separator
+        assert_eq!(
+            PackageDeserializer::extract_version_or_url("@types/node"),
+            None
+        );
+    }
 }
