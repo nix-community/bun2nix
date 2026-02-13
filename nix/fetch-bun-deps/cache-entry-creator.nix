@@ -18,7 +18,7 @@
             zig_0_15.hook
           ];
 
-          postPatch = ''
+          postConfigure = ''
             ln -s ${pkgs.callPackage depsNix { }} $ZIG_GLOBAL_CACHE_DIR/p
           '';
 
