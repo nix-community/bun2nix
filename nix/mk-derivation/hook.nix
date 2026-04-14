@@ -30,6 +30,7 @@ in
           pkgs.yq-go
         ];
         substitutions = {
+          resolveCatalogTs = ./resolve-catalog.ts;
           bunDefaultInstallFlags =
             if pkgs.stdenv.hostPlatform.isDarwin then
               [
