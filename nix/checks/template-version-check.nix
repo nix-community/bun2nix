@@ -28,7 +28,7 @@
 
             version=$(
               cat "${templatesDir}/$template/flake.nix" | \
-              grep -Po 'bun2nix\.url = "github:nix-community/bun2nix\?tag=\K[0-9]+\.[0-9]+\.[0-9]+'
+              grep -Po 'bun2nix\.url = "github:nix-community/bun2nix\?ref=\K[0-9]+\.[0-9]+\.[0-9]+'
             )
 
             if ! [[ "$version" == "${currentVersion}" ]]; then
