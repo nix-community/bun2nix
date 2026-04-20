@@ -37,19 +37,33 @@ in
 
   config.perSystem =
     { pkgs, ... }:
+    let
+      # Nix store paths cannot contain '@' or '/'; sanitize for derivation names.
+      sanitizeName = builtins.replaceStrings [ "@" "/" ] [ "_at_" "_" ];
+    in
     {
       fetchBunDeps.patchedDependenciesToOverrides =
         {
           patchedDependencies ? { },
         }:
         lib.mapAttrs (
-          name: patchFile: pkg:
-          pkgs.runCommandLocal "patched-${name}" { nativeBuildInputs = [ pkgs.patch ]; } ''
+          name: patchFile:
+          let
+            # Patch file paths may also contain '@' (e.g. @storybook+nextjs@10.3.5.patch),
+            # so import them into the store with a sanitized name.
+            safePatchFile = builtins.path {
+              path = patchFile;
+              name = sanitizeName (baseNameOf (toString patchFile));
+            };
+          in
+          pkg:
+          pkgs.runCommandLocal "patched-${sanitizeName name}" { nativeBuildInputs = [ pkgs.patch ]; } ''
             mkdir $out
             cp -r ${pkg}/. $out
+            chmod -R u+w $out
 
             echo "Applying patch for ${name}..."
-            patch -p1 -d $out < ${patchFile}
+            patch -p1 -d $out < ${safePatchFile}
           ''
         ) patchedDependencies;
     };
