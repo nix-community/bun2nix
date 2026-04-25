@@ -73,14 +73,14 @@ EOF
 }
 
 function bunPatchPhase {
-  runHook prePatch
+  runHook preBunPatchPhase
 
   patchShebangs .
 
   HOME=$(mktemp -d)
   export HOME
 
-  runHook postPatch
+  runHook postBunPatchPhase
 }
 
 function bunNodeModulesInstallPhase {
@@ -194,8 +194,8 @@ if [ -z "${dontRunLifecycleScripts-}" ]; then
   appendToVar preBuildPhases bunLifecycleScriptsPhase
 fi
 
-if [ -z "${dontUseBunPatch-}" ] && [ -z "${patchPhase-}" ]; then
-  patchPhase=bunPatchPhase
+if [ -z "${dontUseBunPatch-}" ]; then
+  appendToVar preConfigurePhases bunPatchPhase
 fi
 
 if [ -z "${dontUseBunBuild-}" ] && [ -z "${buildPhase-}" ]; then
