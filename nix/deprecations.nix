@@ -15,7 +15,7 @@ let
 
       ```nix
       # Put the appropriate version here
-      bun2nix.url = "github:nix-community/bun2nix?tag=2.0.0";
+      bun2nix.url = "github:nix-community/bun2nix?ref=2.0.0";
       ```
 
       # Potential Fix:

@@ -1,8 +1,9 @@
 {
-  description = "Bun2Nix tarball deps sample";
+  description = "Bun2Nix catalog workspace sample";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
     systems.url = "github:nix-systems/default";
 
     bun2nix.url = "github:nix-community/bun2nix?ref=2.1.0";
@@ -54,8 +55,7 @@
             bun
 
             # Add the bun2nix binary to our devshell
-            # You must use the binary from nix if
-            # you want to use tarball deps
+            # Optional now that we have a binary on npm
             bun2nix
           ];
 

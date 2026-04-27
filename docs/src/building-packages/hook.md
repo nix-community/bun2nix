@@ -58,6 +58,10 @@ The `bun2nix` hook installs the fake [Bun install cache](https://github.com/oven
 
 This is then installed into your repo via a regular `bun install` during `bunNodeModulesInstallPhase`, which runs before the `buildPhase`.
 
+### Workspace catalogs
+
+Projects that use Bun's [`catalog:` protocol](https://bun.com/docs/pm/catalogs) work out of the box. Because `bun install` re-resolves `catalog:` specifiers against the registry even with a fully populated cache, the hook runs `bunResolveCatalogRefs` immediately before `bun install`: it reads the exact pinned version for each package from `bun.lock` and rewrites every `catalog:` reference (in `bun.lock`'s `workspaces` section and each workspace `package.json`) to that exact version, or to `workspace:*` for workspace packages. Both the default catalog and named catalogs (`catalog:<name>`) are handled. The rewrite is a no-op when the lockfile contains no `catalog:` references.
+
 ## Arguments
 
 The full list of extra arguments `bun2nix.hook` adds to a derivation are:
