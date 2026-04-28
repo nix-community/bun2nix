@@ -123,6 +123,7 @@ name = "bun2nix"
 version = "2.1.0"
 dependencies = [
  "askama",
+ "cfg-if",
  "clap",
  "env_logger",
  "itertools",
