@@ -37,10 +37,6 @@ in
 
   config.perSystem =
     { pkgs, ... }:
-    let
-      # Nix store paths cannot contain '@' or '/'; sanitize for derivation names.
-      sanitizeName = builtins.replaceStrings [ "@" "/" ] [ "_at_" "_" ];
-    in
     {
       fetchBunDeps.patchedDependenciesToOverrides =
         {
@@ -53,18 +49,25 @@ in
             # so import them into the store with a sanitized name.
             safePatchFile = builtins.path {
               path = patchFile;
-              name = builtins.unsafeDiscardStringContext (sanitizeName (baseNameOf (toString patchFile)));
+              name = lib.pipe patchFile [
+                toString
+                baseNameOf
+                lib.strings.sanitizeDerivationName
+                builtins.unsafeDiscardStringContext
+              ];
             };
           in
           pkg:
-          pkgs.runCommandLocal "patched-${sanitizeName name}" { nativeBuildInputs = [ pkgs.patch ]; } ''
-            mkdir $out
-            cp -r ${pkg}/. $out
-            chmod -R u+w $out
+          pkgs.runCommandLocal "patched-${lib.strings.sanitizeDerivationName name}"
+            { nativeBuildInputs = [ pkgs.patch ]; }
+            ''
+              mkdir $out
+              cp -r ${pkg}/. $out
+              chmod -R u+w $out
 
-            echo "Applying patch for ${name}..."
-            patch -p1 -d $out < ${safePatchFile}
-          ''
+              echo "Applying patch for ${name}..."
+              patch -p1 -d $out < ${safePatchFile}
+            ''
         ) patchedDependencies;
     };
 }
