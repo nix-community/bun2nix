@@ -9,11 +9,14 @@ bun2nix.writeBunApplication {
 
   src = ./.;
 
-  # all cpus are needed for x86 darwin builds
-  bunInstallFlags = lib.optionals (stdenv.hostPlatform.system == "x86_64-darwin") [
+  # nextjs relies on platform specific bun instances
+  bunInstallFlags = [
+    "--cpu=*"
+  ]
+  # non linux builds want symlinks instead of hardlinks for nextjs
+  ++ lib.optionals (stdenv.hostPlatform.system != "x86_64-linux") [
     "--linker=isolated"
     "--backend=symlink"
-    "--cpu=*"
   ];
 
   buildPhase = ''

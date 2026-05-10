@@ -1,8 +1,9 @@
 {
-  description = "Bun2Nix private registry example";
+  description = "Bun2Nix catalog workspace sample";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
     systems.url = "github:nix-systems/default";
 
     bun2nix.url = "github:nix-community/bun2nix?ref=2.1.0";
@@ -32,6 +33,9 @@
         import inputs.nixpkgs {
           inherit system;
           # Use the bun2nix overlay, which puts `bun2nix` in pkgs
+          # You can, of course, still access
+          # inputs.bun2nix.packages.${system}.default instead
+          # and use that to build your package instead
           overlays = [ inputs.bun2nix.overlays.default ];
         }
       );
@@ -49,6 +53,7 @@
             bun
 
             # Add the bun2nix binary to our devshell
+            # Optional now that we have a binary on npm
             bun2nix
           ];
 

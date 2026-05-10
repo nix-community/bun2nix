@@ -43,14 +43,31 @@ in
           patchedDependencies ? { },
         }:
         lib.mapAttrs (
-          name: patchFile: pkg:
-          pkgs.runCommandLocal "patched-${name}" { nativeBuildInputs = [ pkgs.patch ]; } ''
-            mkdir $out
-            cp -r ${pkg}/. $out
+          name: patchFile:
+          let
+            # Patch file paths may also contain '@' (e.g. @storybook+nextjs@10.3.5.patch),
+            # so import them into the store with a sanitized name.
+            safePatchFile = builtins.path {
+              path = patchFile;
+              name = lib.pipe patchFile [
+                toString
+                baseNameOf
+                lib.strings.sanitizeDerivationName
+                builtins.unsafeDiscardStringContext
+              ];
+            };
+          in
+          pkg:
+          pkgs.runCommandLocal "patched-${lib.strings.sanitizeDerivationName name}"
+            { nativeBuildInputs = [ pkgs.patch ]; }
+            ''
+              mkdir $out
+              cp -r ${pkg}/. $out
+              chmod -R u+w $out
 
-            echo "Applying patch for ${name}..."
-            patch -p1 -d $out < ${patchFile}
-          ''
+              echo "Applying patch for ${name}..."
+              patch -p1 -d $out < ${safePatchFile}
+            ''
         ) patchedDependencies;
     };
 }

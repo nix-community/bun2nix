@@ -19,11 +19,12 @@ impl Prefetch {
     /// Prefetch a package as a url and calculate it's
     /// sha256
     pub fn prefetch_package(url: &str) -> Result<Self> {
-        #[cfg(target_arch = "wasm32")]
-        return Err(Error::UnsupportedWASMCliAction(url.to_owned()));
-
-        warn!(
-            "
+        cfg_if::cfg_if! {
+            if #[cfg(target_arch = "wasm32")] {
+                return Err(Error::UnsupportedWASMCliAction(url.to_owned()));
+            } else {
+                warn!(
+                        "
 Hash was not already known for `{url}`.
 
 This must be prefetched and hashed by `bun2nix` via
@@ -36,28 +37,30 @@ See:
 - https://github.com/oven-sh/bun/issues/19519
 
 Disable these warnings with `RUST_LOG=error` or `RUST_LOG=off`
-        "
-        );
+            "
+                    );
 
-        let cmd_res = Command::new("nix")
-            .args([
-                "--extra-experimental-features",
-                "nix-command flakes",
-                "flake",
-                "prefetch",
-                url,
-                "--json",
-            ])
-            .output()
-            .map_err(Error::FetchingFailed)?;
+                let cmd_res = Command::new("nix")
+                    .args([
+                        "--extra-experimental-features",
+                        "nix-command flakes",
+                        "flake",
+                        "prefetch",
+                        url,
+                        "--json",
+                    ])
+                    .output()
+                    .map_err(Error::FetchingFailed)?;
 
-        let stdout = str::from_utf8(&cmd_res.stdout).map_err(Error::InvalidUtf8String)?;
+                let stdout = str::from_utf8(&cmd_res.stdout).map_err(Error::InvalidUtf8String)?;
 
-        if !cmd_res.status.success() {
-            let stderr = str::from_utf8(&cmd_res.stderr).map_err(Error::InvalidUtf8String)?;
-            return Err(Error::FetchingError(stderr.to_string()));
+                if !cmd_res.status.success() {
+                    let stderr = str::from_utf8(&cmd_res.stderr).map_err(Error::InvalidUtf8String)?;
+                    return Err(Error::FetchingError(stderr.to_string()));
+                }
+
+                Ok(serde_json::from_str(stdout)?)
+            }
         }
-
-        Ok(serde_json::from_str(stdout)?)
     }
 }

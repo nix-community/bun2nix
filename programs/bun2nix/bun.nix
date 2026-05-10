@@ -5,28 +5,11 @@
 # Consume this with `fetchBunDeps` (recommended)
 # or `pkgs.callPackage` if you wish to handle
 # it manually.
-{ fetchurl, ... }:
 {
-  "@types/bun@1.3.1" = fetchurl {
-    url = "https://registry.npmjs.org/@types/bun/-/bun-1.3.1.tgz";
-    hash = "sha512-4jNMk2/K9YJtfqwoAa28c8wK+T7nvJFOjxI4h/7sORWcypRNxBpr+TPNaCfVWq70tLCJsqoFwcf0oI0JU/fvMQ==";
-  };
-  "@types/node@24.9.1" = fetchurl {
-    url = "https://registry.npmjs.org/@types/node/-/node-24.9.1.tgz";
-    hash = "sha512-QoiaXANRkSXK6p0Duvt56W208du4P9Uye9hWLWgGMDTEoKPhuenzNcC4vGUmrNkiOKTlIrBoyNQYNpSwfEZXSg==";
-  };
-  "@types/react@19.2.2" = fetchurl {
-    url = "https://registry.npmjs.org/@types/react/-/react-19.2.2.tgz";
-    hash = "sha512-6mDvHUFSjyT2B2yeNx2nUgMxh9LtOWvkhIU3uePn2I2oyNymUAX1NIsdgviM4CH+JSrp2D2hsMvJOkxY+0wNRA==";
-  };
-  "bun-types@1.3.1" = fetchurl {
-    url = "https://registry.npmjs.org/bun-types/-/bun-types-1.3.1.tgz";
-    hash = "sha512-NMrcy7smratanWJ2mMXdpatalovtxVggkj11bScuWuiOoXTiKIu2eVS1/7qbyI/4yHedtsn175n4Sm4JcdHLXw==";
-  };
-  "csstype@3.1.3" = fetchurl {
-    url = "https://registry.npmjs.org/csstype/-/csstype-3.1.3.tgz";
-    hash = "sha512-M1uQkMl8rQK/szD0LNhtqxIPLpimGm8sOBwU7lLnCpSbTyY3yeU1Vc7l4KT5zT4s/yOxHH5O7tIuuLOCnLADRw==";
-  };
+  fetchurl,
+  ...
+}:
+{
   "mri@1.2.0" = fetchurl {
     url = "https://registry.npmjs.org/mri/-/mri-1.2.0.tgz";
     hash = "sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA==";
@@ -34,13 +17,5 @@
   "sade@1.8.1" = fetchurl {
     url = "https://registry.npmjs.org/sade/-/sade-1.8.1.tgz";
     hash = "sha512-xal3CZX1Xlo/k4ApwCFrHVACi9fBqJ7V+mwhBsuf/1IOKbBy098Fex+Wa/5QMubw09pSZ/u8EY8PWgevJsXp1A==";
-  };
-  "typescript@5.9.3" = fetchurl {
-    url = "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz";
-    hash = "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==";
-  };
-  "undici-types@7.16.0" = fetchurl {
-    url = "https://registry.npmjs.org/undici-types/-/undici-types-7.16.0.tgz";
-    hash = "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==";
   };
 }

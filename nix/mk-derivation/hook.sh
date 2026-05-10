@@ -73,19 +73,37 @@ EOF
 }
 
 function bunPatchPhase {
-  runHook prePatch
+  runHook preBunPatchPhase
 
   patchShebangs .
 
   HOME=$(mktemp -d)
   export HOME
 
-  runHook postPatch
+  runHook postBunPatchPhase
+}
+
+# bun re-resolves `catalog:` dependency specifiers against the npm registry on
+# every `bun install`, even with a fully populated cache. In the Nix sandbox
+# this fails. The lockfile already records the exact resolved version for
+# every package, so rewrite every `catalog:` reference (in bun.lock's
+# `workspaces` section and in every workspace package.json) to that exact
+# version (or `workspace:*` for workspace packages) before `bun install`.
+function bunResolveCatalogRefs {
+  if ! [ -f bun.lock ] || ! grep -q '"catalog:' bun.lock 2>/dev/null; then
+    return 0
+  fi
+  # --config=/dev/null: ignore the project's bunfig.toml, which may remap
+  #   the .ts loader and silently turn the script into a no-op.
+  # --no-install: never attempt auto-install for the helper script.
+  bun --config=/dev/null --no-install @resolveCatalogTs@ .
 }
 
 function bunNodeModulesInstallPhase {
   pushd "$bunRoot" || exit 1
   runHook preBunNodeModulesInstallPhase
+
+  bunResolveCatalogRefs
 
   # Remove patchedDependencies from package.json and bun.lock since we
   # pre-patch packages during the Nix build. This ensures bun looks for
@@ -194,8 +212,8 @@ if [ -z "${dontRunLifecycleScripts-}" ]; then
   appendToVar preBuildPhases bunLifecycleScriptsPhase
 fi
 
-if [ -z "${dontUseBunPatch-}" ] && [ -z "${patchPhase-}" ]; then
-  patchPhase=bunPatchPhase
+if [ -z "${dontUseBunPatch-}" ]; then
+  appendToVar preConfigurePhases bunPatchPhase
 fi
 
 if [ -z "${dontUseBunBuild-}" ] && [ -z "${buildPhase-}" ]; then
