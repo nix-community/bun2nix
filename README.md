@@ -9,7 +9,7 @@
 
 # Bun2Nix
 
-A fast rust based tool for converting [Bun](https://bun.sh/) (v1.2+) package lock files to [Nix](https://nixos.wiki/) expressions, and consuming them in a reproducible derivation to produce packages.
+A fast rust based tool for converting [Bun](https://bun.sh/) (v1.2+) package lock files to [Nix](https://wiki.nixos.org/wiki/Nix_(language)) expressions, and consuming them in a reproducible derivation to produce packages.
 
 ## Documentation
 

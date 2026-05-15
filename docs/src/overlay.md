@@ -1,6 +1,6 @@
 # Overlay
 
-`bun2nix` provides [an overlay](https://nixos.wiki/wiki/Overlays) which places the `bun2nix` binary (along with it's `passthru` functions) into `pkgs` for ease of use, where you can then use it in your `devShell` or with `pkgs.callPackage`, etc.
+`bun2nix` provides [an overlay](https://wiki.nixos.org/wiki/Overlays) which places the `bun2nix` binary (along with it's `passthru` functions) into `pkgs` for ease of use, where you can then use it in your `devShell` or with `pkgs.callPackage`, etc.
 
 # Usage
 
